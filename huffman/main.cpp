@@ -76,7 +76,7 @@ void around(HuffEntry *root, string code) {
 
 typedef void (*CallbackType)(int, int);
 
-void analyze(char *filename, int wordLength, CallbackType callback)
+void analyze(char *filename, int wordLength, CallbackType callback, CallbackType lastBits)
 {
     int bufferSize = 2; // buffer size in bytes
     
@@ -124,6 +124,12 @@ void analyze(char *filename, int wordLength, CallbackType callback)
         }
     }
     
+    if (wordFill > 0) {
+        if (lastBits) {
+            lastBits(wordFill, wordInt);
+        }
+    }
+    
     free(readBuffer);
     file.close();
 }
@@ -131,6 +137,7 @@ void analyze(char *filename, int wordLength, CallbackType callback)
 vector<HuffEntry *> entries;
 
 void gather(int size, int word) {
+    cout << size;
     // Increse frequency if value already exist
     int k;
     bool exists = false;
@@ -154,6 +161,8 @@ HuffTable tableMap;
 char encoded;
 int encodedSize;
 
+ofstream* of;
+
 void encd(int size, int word)
 {
     HuffCode cd = tableMap[word];
@@ -168,7 +177,7 @@ void encd(int size, int word)
         //11001010000001111101111001100101000000111110111101110011 10110000
         if (encodedSize == 8) {
             print_char_to_binary(encoded);
-            
+            of->put(encoded);
             encoded = 0;
             encodedSize = 0;
         } else {
@@ -182,7 +191,7 @@ void vl_encode(char*filename, char*outname, int wl)
 {
     int wordLength = 5; // word length in bits
     
-    analyze(filename, wordLength, &gather);
+    analyze(filename, wordLength, &gather, NULL);
     
     #warning write this vector to file
     priority_queue<HuffEntry *, vector<HuffEntry *>, Comp> table;
@@ -215,16 +224,40 @@ void vl_encode(char*filename, char*outname, int wl)
     buildMap(root, &tableMap, code);
     
     
-    analyze(filename, wordLength, &encd);
+    analyze(filename, wordLength, &encd, NULL);
     // If there are some bits left unencoded
     if (encodedSize != 0) {
         int shift = 8 - encodedSize - 1;
         encoded <<= shift;
         print_char_to_binary(encoded);
-        
+        of->put(encoded);
     }
 }
 
+void vl_decompress(char* filename)
+{
+    ifstream file (filename , ifstream::in|ifstream::binary);
+    char* readBuffer = new char[256];
+    
+    // Building leaves
+    while (file.good()) {
+        
+        size_t length = file.read(readBuffer, 256).gcount();
+        
+        // Each char
+        int i;
+        for (i = 0; i < length; i++) {
+            char c = readBuffer[i];
+            
+            print_char_to_binary(c);
+            // Each bit
+            
+        }
+        
+    }
+    
+    file.close();
+}
 
 
 /**
@@ -236,12 +269,18 @@ int main(int argc,char**argv){
     {
         if(argv[1][1]=='e')
         {
+            of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
             vl_encode(argv[2], argv[3], 8);
-//            encoder(argv[2],argv[3]);
+            of->close();
+            
+            cout << "reading compressed" << endl;
+            
+            vl_decompress("compressed.txt");
+            
         }
         else if(argv[1][1]=='d')
         {
-//            decoder(argv[2],argv[3]);
+            
         }
         else
         {
