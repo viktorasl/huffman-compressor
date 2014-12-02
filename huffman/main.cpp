@@ -159,9 +159,13 @@ void encd(int size, int word)
     HuffCode cd = tableMap[word];
     int i;
     for (i = 0; i < cd.size(); i++) {
+//        cout << cd[i];
         encoded |= cd[i];
         encodedSize++;
         
+        //11001010000001111101111001100101000000111110111101110011 10110
+        //11001010000001111101111001100101000000111110111101110011
+        //11001010000001111101111001100101000000111110111101110011 10110000
         if (encodedSize == 8) {
             print_char_to_binary(encoded);
             
@@ -176,7 +180,7 @@ void encd(int size, int word)
 
 void vl_encode(char*filename, char*outname, int wl)
 {
-    int wordLength = 4; // word length in bits
+    int wordLength = 5; // word length in bits
     
     analyze(filename, wordLength, &gather);
     
@@ -212,7 +216,13 @@ void vl_encode(char*filename, char*outname, int wl)
     
     
     analyze(filename, wordLength, &encd);
-    
+    // If there are some bits left unencoded
+    if (encodedSize != 0) {
+        int shift = 8 - encodedSize - 1;
+        encoded <<= shift;
+        print_char_to_binary(encoded);
+        
+    }
 }
 
 
