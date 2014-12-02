@@ -1,17 +1,4 @@
-//
-//  main.cpp
-//  huffman
-//
-//  Created by Viktoras Laukevičius on 02/12/14.
-//  Copyright (c) 2014 viktorasl. All rights reserved.
-//
-
-//============================================================================
-// Name        : huff.cpp
-// Author      : Ahmet Celik
-// Version     : 2009400111
-//============================================================================
-
+// Encoded file: word_size|left_bits|tree|content
 
 #include <vector>
 #include <deque>
@@ -26,6 +13,7 @@
 
 using namespace std;
 
+#ifdef DEBUG
 void print_char_to_binary(char ch)
 {
     int i;
@@ -33,6 +21,7 @@ void print_char_to_binary(char ch)
         printf("%d",((ch & (1<<i))>>i));
     printf("\n");
 }
+#endif
 
 struct HuffEntry {
     int value = 0;
@@ -66,7 +55,7 @@ void around(HuffEntry *root, string code) {
 void vl_encode(char*filename, char*outname, int wl)
 {
     int bufferSize = 256; // buffer size in bytes
-    int wordLength = 4; // word length in bits
+    int wordLength = 7; // word length in bits
     
     vector<HuffEntry *> entries;
     
@@ -75,18 +64,20 @@ void vl_encode(char*filename, char*outname, int wl)
     
     ifstream file (filename , ifstream::in|ifstream::binary);
     char* readBuffer = new char[bufferSize];
-    while  (file.good()) {
+    
+    // Building leaves
+    while (file.good()) {
         
         size_t length = file.read(readBuffer, bufferSize).gcount();
         
-        // Each character
+        // Each character in buffer
         int i;
         for (i = 0; i < length; i++) {
             char ch = readBuffer[i];
 //            cout << "Char: " << ch << " ";
 //            print_char_to_binary(ch);
             
-            // Each characters' bit
+            // Each bit in character
             int j;
             for (j = sizeof(char) * 8 - 1; j >= 0; j--) {
                 bool bit = (ch & (1 << j)) >> j;
@@ -94,9 +85,11 @@ void vl_encode(char*filename, char*outname, int wl)
                 wordInt |= bit;
                 wordFill++;
                 
+                // Finished composing word of wordLength bits, making HuffEntry leaf
                 if (wordFill == wordLength) {
 //                    cout << "Code: " << wordInt << endl;
                     
+                    // Increse frequency if value already exist
                     int k;
                     bool exists = false;
                     for (k = 0; k < entries.size(); k++) {
@@ -106,6 +99,7 @@ void vl_encode(char*filename, char*outname, int wl)
                         }
                     }
                     
+                    // Creating new entry
                     if (! exists) {
                         HuffEntry *h = new HuffEntry();
                         h->value = wordInt;
@@ -113,24 +107,30 @@ void vl_encode(char*filename, char*outname, int wl)
                         entries.push_back(h);
                     }
                     
+                    // Resetting
                     wordInt = 0;
                     wordFill = 0;
                     
                 } else {
+                    // Shifting value
                     wordInt <<= 1;
                 }
             }
         }
     }
     
+    #warning there might be some bits left
+    if (wordFill != 0) {
+        cout << "left" << endl;
+    }
+    
+    #warning write this vector to file
     priority_queue<HuffEntry *, vector<HuffEntry *>, Comp> table;
     
-    
-    // Printint all entries
+    // Making priority queue from vector
     int i;
     for (i = 0; i < entries.size(); i++) {
         table.push(entries[i]);
-//        cout << "E: " << entries[i].value << " (" << entries[i].frequency << ")" << endl;
     }
     
     while (table.size() > 1) {
@@ -146,28 +146,12 @@ void vl_encode(char*filename, char*outname, int wl)
         up->right = s;
         
         table.push(up);
-        
-//        cout << "E: " << a->value << " (" << a->frequency << ")" << endl;
     }
     
     HuffEntry *root = table.top();
     around(root, "");
     
-#warning print this vector to file
-    
-        // There are some bits left
-//    if (word->size() > 0) {
-//        int j;
-//        for (j = 0; j < word->size(); j++) {
-//            cout << (int)(word->at(j));
-//        }
-//        cout << endl;
-//    }
 }
-
-
-
-
 
 /**
  * handles with arguments.
