@@ -78,7 +78,7 @@ typedef void (*CallbackType)(int, int);
 
 void analyze(char *filename, int wordLength, CallbackType callback)
 {
-    int bufferSize = 256; // buffer size in bytes
+    int bufferSize = 2; // buffer size in bytes
     
     int wordInt = 0;
     int wordFill = 0;
@@ -124,6 +124,7 @@ void analyze(char *filename, int wordLength, CallbackType callback)
         }
     }
     
+    free(readBuffer);
     file.close();
 }
 
@@ -150,6 +151,28 @@ void gather(int size, int word) {
 }
 
 HuffTable tableMap;
+char encoded;
+int encodedSize;
+
+void encd(int size, int word)
+{
+    HuffCode cd = tableMap[word];
+    int i;
+    for (i = 0; i < cd.size(); i++) {
+        encoded |= cd[i];
+        encodedSize++;
+        
+        if (encodedSize == 8) {
+            print_char_to_binary(encoded);
+            
+            encoded = 0;
+            encodedSize = 0;
+        } else {
+            encoded <<= 1;
+        }
+        
+    }
+}
 
 void vl_encode(char*filename, char*outname, int wl)
 {
@@ -187,11 +210,8 @@ void vl_encode(char*filename, char*outname, int wl)
     around(root, "");
     buildMap(root, &tableMap, code);
     
-    HuffCode cd = tableMap[19];
-    cout << 19 << ": ";
-    for (i = 0; i < cd.size(); i++) {
-        cout << (int)cd[i];
-    }
+    
+    analyze(filename, wordLength, &encd);
     
 }
 
