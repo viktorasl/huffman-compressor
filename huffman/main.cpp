@@ -13,6 +13,10 @@
 
 using namespace std;
 
+typedef vector<bool> HuffCode;
+typedef map<int, HuffCode> HuffTable;
+
+
 #ifdef DEBUG
 void print_char_to_binary(char ch)
 {
@@ -36,6 +40,23 @@ struct Comp{
     }
 };
 
+void buildMap(HuffEntry *root, HuffTable* populateTable, HuffCode code) {
+    if (!root->left && !root->right) {
+        populateTable->insert(std::pair<int, HuffCode>(root->value, code));
+    }
+    if (root->left) {
+        HuffCode newCode(code);
+        newCode.push_back(0);
+        buildMap(root->left, populateTable, newCode);
+    }
+    if (root->right) {
+        HuffCode newCode(code);
+        newCode.push_back(1);
+        buildMap(root->right, populateTable, newCode);
+    }
+}
+
+#ifdef DEBUG
 void around(HuffEntry *root, string code) {
     if (!root->left && !root->right) {
         cout << "value=" << root->value << " freq=" << root->frequency << " code=" << code << endl;
@@ -51,6 +72,7 @@ void around(HuffEntry *root, string code) {
         around(root->right, ss.str());
     }
 }
+#endif
 
 void vl_encode(char*filename, char*outname, int wl)
 {
@@ -149,9 +171,20 @@ void vl_encode(char*filename, char*outname, int wl)
     }
     
     HuffEntry *root = table.top();
+    HuffTable tableMap;
+    HuffCode code;
     around(root, "");
+    buildMap(root, &tableMap, code);
+    
+    HuffCode cd = tableMap[19];
+    cout << 19 << ": ";
+    for (i = 0; i < cd.size(); i++) {
+        cout << (int)cd[i];
+    }
     
 }
+
+
 
 /**
  * handles with arguments.
