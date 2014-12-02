@@ -160,6 +160,7 @@ void gather(int size, int word) {
 HuffTable tableMap;
 char encoded;
 int encodedSize;
+HuffEntry *root;
 
 ofstream* of;
 
@@ -189,7 +190,7 @@ void encd(int size, int word)
 
 void vl_encode(char*filename, char*outname, int wl)
 {
-    int wordLength = 5; // word length in bits
+    int wordLength = 16; // word length in bits
     
     analyze(filename, wordLength, &gather, NULL);
     
@@ -217,7 +218,7 @@ void vl_encode(char*filename, char*outname, int wl)
         table.push(up);
     }
     
-    HuffEntry *root = table.top();
+    root = table.top();
     
     HuffCode code;
     around(root, "");
@@ -239,6 +240,8 @@ void vl_decompress(char* filename)
     ifstream file (filename , ifstream::in|ifstream::binary);
     char* readBuffer = new char[256];
     
+    HuffEntry *it = root;
+    
     // Building leaves
     while (file.good()) {
         
@@ -249,9 +252,22 @@ void vl_decompress(char* filename)
         for (i = 0; i < length; i++) {
             char c = readBuffer[i];
             
-            print_char_to_binary(c);
             // Each bit
-            
+            int j;
+            for (j = (sizeof(c) * 8 - 1); j >= 0; j--) {
+                
+                if (!it->left && !it->right) {
+                    cout << it->value;
+                    it = root;
+                }
+                
+                bool bit = (c & (1 << j)) >> j;
+                if (bit == 0) {
+                    it = it->left;
+                } else {
+                    it = it->right;
+                }
+            }
         }
         
     }
