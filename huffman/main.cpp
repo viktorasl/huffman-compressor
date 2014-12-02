@@ -74,12 +74,11 @@ void around(HuffEntry *root, string code) {
 }
 #endif
 
-void vl_encode(char*filename, char*outname, int wl)
+typedef void (*CallbackType)(int, int);
+
+void analyze(char *filename, int wordLength, CallbackType callback)
 {
     int bufferSize = 256; // buffer size in bytes
-    int wordLength = 7; // word length in bits
-    
-    vector<HuffEntry *> entries;
     
     int wordInt = 0;
     int wordFill = 0;
@@ -96,38 +95,22 @@ void vl_encode(char*filename, char*outname, int wl)
         int i;
         for (i = 0; i < length; i++) {
             char ch = readBuffer[i];
-//            cout << "Char: " << ch << " ";
-//            print_char_to_binary(ch);
+            //            cout << "Char: " << ch << " ";
+            //            print_char_to_binary(ch);
             
             // Each bit in character
             int j;
             for (j = sizeof(char) * 8 - 1; j >= 0; j--) {
                 bool bit = (ch & (1 << j)) >> j;
-
+                
                 wordInt |= bit;
                 wordFill++;
                 
                 // Finished composing word of wordLength bits, making HuffEntry leaf
                 if (wordFill == wordLength) {
-//                    cout << "Code: " << wordInt << endl;
+                    //                    cout << "Code: " << wordInt << endl;
                     
-                    // Increse frequency if value already exist
-                    int k;
-                    bool exists = false;
-                    for (k = 0; k < entries.size(); k++) {
-                        if (entries[k]->value == wordInt) {
-                            entries[k]->frequency++;
-                            exists = true;
-                        }
-                    }
-                    
-                    // Creating new entry
-                    if (! exists) {
-                        HuffEntry *h = new HuffEntry();
-                        h->value = wordInt;
-                        h->frequency = 1;
-                        entries.push_back(h);
-                    }
+                    callback(wordFill, wordInt);
                     
                     // Resetting
                     wordInt = 0;
@@ -141,10 +124,38 @@ void vl_encode(char*filename, char*outname, int wl)
         }
     }
     
-    #warning there might be some bits left
-    if (wordFill != 0) {
-        cout << "left" << endl;
+    file.close();
+}
+
+vector<HuffEntry *> entries;
+
+void gather(int size, int word) {
+    // Increse frequency if value already exist
+    int k;
+    bool exists = false;
+    for (k = 0; k < entries.size(); k++) {
+        if (entries[k]->value == word) {
+            entries[k]->frequency++;
+            exists = true;
+        }
     }
+    
+    // Creating new entry
+    if (! exists) {
+        HuffEntry *h = new HuffEntry();
+        h->value = word;
+        h->frequency = 1;
+        entries.push_back(h);
+    }
+}
+
+HuffTable tableMap;
+
+void vl_encode(char*filename, char*outname, int wl)
+{
+    int wordLength = 4; // word length in bits
+    
+    analyze(filename, wordLength, &gather);
     
     #warning write this vector to file
     priority_queue<HuffEntry *, vector<HuffEntry *>, Comp> table;
@@ -171,7 +182,7 @@ void vl_encode(char*filename, char*outname, int wl)
     }
     
     HuffEntry *root = table.top();
-    HuffTable tableMap;
+    
     HuffCode code;
     around(root, "");
     buildMap(root, &tableMap, code);
