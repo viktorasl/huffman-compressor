@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <queue>
 
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+
 using namespace std;
 
 typedef vector<bool> HuffCode;
@@ -22,6 +24,17 @@ void print_char_to_binary(char ch)
 {
     int i;
     for (i=(sizeof(ch) * 8 - 1);i>=0;i--)
+        printf("%d",((ch & (1<<i))>>i));
+    printf("\n");
+}
+#endif
+
+#ifdef DEBUG
+void print_short_to_binary(short ch, int size)
+{
+    int i;
+    int from = MIN(sizeof(ch) * 8, size);
+    for (i=from - 1;i>=0;i--)
         printf("%d",((ch & (1<<i))>>i));
     printf("\n");
 }
@@ -137,7 +150,6 @@ void analyze(char *filename, int wordLength, CallbackType callback, CallbackType
 vector<HuffEntry *> entries;
 
 void gather(int size, int word) {
-    cout << size;
     // Increse frequency if value already exist
     int k;
     bool exists = false;
@@ -188,10 +200,8 @@ void encd(int size, int word)
     }
 }
 
-void vl_encode(char*filename, char*outname, int wl)
+void vl_encode(char*filename, char*outname, int wordLength)
 {
-    int wordLength = 16; // word length in bits
-    
     analyze(filename, wordLength, &gather, NULL);
     
     #warning write this vector to file
@@ -224,9 +234,10 @@ void vl_encode(char*filename, char*outname, int wl)
     around(root, "");
     buildMap(root, &tableMap, code);
     
-    
     analyze(filename, wordLength, &encd, NULL);
-    // If there are some bits left unencoded
+    
+    // If there are some bits left unencoded,
+    // extending it with 0 bits and writing to file
     if (encodedSize != 0) {
         int shift = 8 - encodedSize - 1;
         encoded <<= shift;
@@ -235,12 +246,15 @@ void vl_encode(char*filename, char*outname, int wl)
     }
 }
 
-void vl_decompress(char* filename)
+void vl_decompress(char* filename, int wordLength)
 {
     ifstream file (filename , ifstream::in|ifstream::binary);
     char* readBuffer = new char[256];
     
     HuffEntry *it = root;
+    
+    char decoded = 0;
+    int decodedBits = 0;
     
     // Building leaves
     while (file.good()) {
@@ -252,21 +266,43 @@ void vl_decompress(char* filename)
         for (i = 0; i < length; i++) {
             char c = readBuffer[i];
             
-            // Each bit
+            // Each bit of read byte
             int j;
             for (j = (sizeof(c) * 8 - 1); j >= 0; j--) {
+                bool bit = (c & (1 << j)) >> j;
                 
-                if (!it->left && !it->right) {
-                    cout << it->value;
+                
+                if (bit == 0 && it->left) {
+                    it = it->left;
+                } else if (it->right) {
+                    it = it->right;
+                }
+                
+                if (!it->left && !it->right && it->value != -1) {
+                    
+                    // Each bit of decoded code (int)
+                    int k;
+                    for (k = wordLength - 1;k>=0;k--) {
+
+                        bool codeBit = (it->value & (1 << k)) >> k;
+                        decoded |= codeBit;
+                        decodedBits++;
+
+                        // Full char
+                        if (decodedBits == 8) {
+                            cout << decoded;
+
+                            decoded = 0;
+                            decodedBits = 0;
+                        } else {
+                            decoded <<= 1;
+                        }
+                    }
+
+                    // Resetting
                     it = root;
                 }
                 
-                bool bit = (c & (1 << j)) >> j;
-                if (bit == 0) {
-                    it = it->left;
-                } else {
-                    it = it->right;
-                }
             }
         }
         
@@ -285,13 +321,15 @@ int main(int argc,char**argv){
     {
         if(argv[1][1]=='e')
         {
+            int wordLength = 7;
+            
             of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
-            vl_encode(argv[2], argv[3], 8);
+            vl_encode(argv[2], argv[3], wordLength);
             of->close();
             
             cout << "reading compressed" << endl;
             
-            vl_decompress("compressed.txt");
+            vl_decompress("compressed.txt", wordLength);
             
         }
         else if(argv[1][1]=='d')
