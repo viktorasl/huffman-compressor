@@ -18,6 +18,8 @@ using namespace std;
 typedef vector<bool> HuffCode;
 typedef map<int, HuffCode> HuffTable;
 
+ofstream *in;
+
 
 #ifdef DEBUG
 void print_char_to_binary(char ch)
@@ -72,7 +74,7 @@ void buildMap(HuffEntry *root, HuffTable* populateTable, HuffCode code) {
 #ifdef DEBUG
 void around(HuffEntry *root, string code) {
     if (!root->left && !root->right) {
-        cout << "value=" << root->value << " freq=" << root->frequency << " code=" << code << endl;
+//        cout << "value=" << root->value << " freq=" << root->frequency << " code=" << code << endl;
     }
     if (root->left) {
         stringstream ss;
@@ -196,7 +198,7 @@ void encd(int size, int word)
         encodedSize++;
         
         if (encodedSize == 8) {
-            print_char_to_binary(encoded);
+//            print_char_to_binary(encoded);
             of->put(encoded);
             encoded = 0;
             encodedSize = 0;
@@ -251,7 +253,7 @@ void vl_encode(char*filename, char*outname, int wordLength)
         int shift = 8 - encodedSize - 1;
         fakeBitsLength = shift;
         encoded <<= shift;
-        print_char_to_binary(encoded);
+//        print_char_to_binary(encoded);
         of->put(encoded);
     }
 }
@@ -313,8 +315,9 @@ void vl_decompress(char* filename, int wordLength)
 
                         // Full char
                         if (decodedBits == 8) {
-                            cout << decoded;
-                            print_char_to_binary(decoded);
+                            in->put(decoded);
+//                            cout << decoded;
+//                            print_char_to_binary(decoded);
                             
                             decoded = 0;
                             decodedBits = 0;
@@ -330,33 +333,33 @@ void vl_decompress(char* filename, int wordLength)
             }
         }
         
-        if (leftBitsLength) {
-            cout << "Left length: " << leftBitsLength;
-            int k;
-            for (k = leftBitsLength - 1; k >= 0; k--) {
-                bool bit = (leftBits & (1 << k)) >> k;
+    }
+    
+    if (leftBitsLength) {
+        //            cout << "Left length: " << leftBitsLength;
+        int k;
+        for (k = leftBitsLength - 1; k >= 0; k--) {
+            bool bit = (leftBits & (1 << k)) >> k;
+            
+            decoded |= bit;
+            decodedBits++;
+            
+            // Full char
+            if (decodedBits == 8) {
+                in->put(decoded);
+                //                    cout << decoded;
+                //                    print_char_to_binary(decoded);
                 
-                decoded |= bit;
-                decodedBits++;
-                
-                // Full char
-                if (decodedBits == 8) {
-                    cout << decoded;
-                    print_char_to_binary(decoded);
-                    
-                    decoded = 0;
-                    decodedBits = 0;
-                } else {
-                    decoded <<= 1;
-                }
+                decoded = 0;
+                decodedBits = 0;
+            } else {
+                decoded <<= 1;
             }
         }
-        
     }
     
     file.close();
 }
-
 
 /**
  * handles with arguments.
@@ -367,15 +370,17 @@ int main(int argc,char**argv){
     {
         if(argv[1][1]=='e')
         {
-            int wordLength = 6;
+            int wordLength = 12;
             
             of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
-            vl_encode(argv[2], argv[3], wordLength);
+            vl_encode("test.pdf", "compressed.txt", wordLength);
             of->close();
             
             cout << "reading compressed" << endl;
             
+            in = new ofstream("test_dec.pdf", ofstream::out|ofstream::binary);
             vl_decompress("compressed.txt", wordLength);
+            in->close();
             
         }
         else if(argv[1][1]=='d')
