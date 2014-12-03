@@ -17,9 +17,12 @@ using namespace std;
 
 typedef vector<bool> HuffCode;
 typedef map<int, HuffCode> HuffTable;
+typedef int HuffValue;
+typedef int HuffFrequency;
+typedef map<HuffValue, HuffFrequency> HuffFrequenciesTable;
+typedef HuffFrequenciesTable::iterator HuffFrequenciesIterator;
 
 ofstream *in;
-
 
 #ifdef DEBUG
 void print_char_to_binary(char ch)
@@ -150,27 +153,10 @@ void analyze(char *filename, int wordLength, CallbackType callback, CallbackType
     file.close();
 }
 
-vector<HuffEntry *> entries;
+HuffFrequenciesTable frequencies;
 
 void gather(int size, int word) {
-    // Increse frequency if value already exist
-    int k;
-    bool exists = false;
-    for (k = 0; k < entries.size(); k++) {
-        if (entries[k]->value == word) {
-            entries[k]->frequency++;
-            exists = true;
-            break;
-        }
-    }
-    
-    // Creating new entry
-    if (! exists) {
-        HuffEntry *h = new HuffEntry();
-        h->value = word;
-        h->frequency = 1;
-        entries.push_back(h);
-    }
+    frequencies[word]++;
 }
 
 int leftBits;
@@ -215,13 +201,18 @@ void vl_encode(char*filename, char*outname, int wordLength)
 {
     analyze(filename, wordLength, &gather, &leftBitsHandler);
     
-    #warning write this vector to file
+    cout << "analization finished" << endl;
+    
+    #warning write frequencies to file
     priority_queue<HuffEntry *, vector<HuffEntry *>, Comp> table;
     
-    // Making priority queue from vector
-    int i;
-    for (i = 0; i < entries.size(); i++) {
-        table.push(entries[i]);
+    // Building priority queue
+    for(HuffFrequenciesIterator iterator = frequencies.begin(); iterator != frequencies.end(); iterator++) {
+        HuffEntry *h = new HuffEntry();
+        h->value = iterator->first;
+        h->frequency = iterator->second;
+        
+        table.push(h);
     }
     
     while (table.size() > 1) {
@@ -242,7 +233,6 @@ void vl_encode(char*filename, char*outname, int wordLength)
     root = table.top();
     
     HuffCode code;
-    around(root, "");
     buildMap(root, &tableMap, code);
     
     analyze(filename, wordLength, &encd, NULL);
@@ -253,7 +243,6 @@ void vl_encode(char*filename, char*outname, int wordLength)
         int shift = 8 - encodedSize - 1;
         fakeBitsLength = shift;
         encoded <<= shift;
-//        print_char_to_binary(encoded);
         of->put(encoded);
     }
 }
@@ -370,7 +359,7 @@ int main(int argc,char**argv){
     {
         if(argv[1][1]=='e')
         {
-            int wordLength = 12;
+            int wordLength = 2;
             
             of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
             vl_encode("test.pdf", "compressed.txt", wordLength);
