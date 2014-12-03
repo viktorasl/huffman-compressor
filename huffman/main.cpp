@@ -116,6 +116,10 @@ void analyze(char *filename, int wordLength, CallbackType callback, CallbackType
             for (j = sizeof(char) * 8 - 1; j >= 0; j--) {
                 bool bit = (ch & (1 << j)) >> j;
                 
+                if (wordFill > 0) {
+                    wordInt <<= 1;
+                }
+                
                 wordInt |= bit;
                 wordFill++;
                 
@@ -129,9 +133,6 @@ void analyze(char *filename, int wordLength, CallbackType callback, CallbackType
                     wordInt = 0;
                     wordFill = 0;
                     
-                } else {
-                    // Shifting value
-                    wordInt <<= 1;
                 }
             }
         }
@@ -157,6 +158,7 @@ void gather(int size, int word) {
         if (entries[k]->value == word) {
             entries[k]->frequency++;
             exists = true;
+            break;
         }
     }
     
@@ -167,6 +169,15 @@ void gather(int size, int word) {
         h->frequency = 1;
         entries.push_back(h);
     }
+}
+
+int leftBits;
+int leftBitsLength;
+
+void leftBitsHandler(int size, int word)
+{
+    leftBits = word;
+    leftBitsLength = size;
 }
 
 HuffTable tableMap;
@@ -181,13 +192,9 @@ void encd(int size, int word)
     HuffCode cd = tableMap[word];
     int i;
     for (i = 0; i < cd.size(); i++) {
-//        cout << cd[i];
         encoded |= cd[i];
         encodedSize++;
         
-        //11001010000001111101111001100101000000111110111101110011 10110
-        //11001010000001111101111001100101000000111110111101110011
-        //11001010000001111101111001100101000000111110111101110011 10110000
         if (encodedSize == 8) {
             print_char_to_binary(encoded);
             of->put(encoded);
@@ -200,9 +207,11 @@ void encd(int size, int word)
     }
 }
 
+int fakeBitsLength;
+
 void vl_encode(char*filename, char*outname, int wordLength)
 {
-    analyze(filename, wordLength, &gather, NULL);
+    analyze(filename, wordLength, &gather, &leftBitsHandler);
     
     #warning write this vector to file
     priority_queue<HuffEntry *, vector<HuffEntry *>, Comp> table;
@@ -240,6 +249,7 @@ void vl_encode(char*filename, char*outname, int wordLength)
     // extending it with 0 bits and writing to file
     if (encodedSize != 0) {
         int shift = 8 - encodedSize - 1;
+        fakeBitsLength = shift;
         encoded <<= shift;
         print_char_to_binary(encoded);
         of->put(encoded);
@@ -249,6 +259,12 @@ void vl_encode(char*filename, char*outname, int wordLength)
 void vl_decompress(char* filename, int wordLength)
 {
     ifstream file (filename , ifstream::in|ifstream::binary);
+    
+    // Getting file length
+    file.seekg (0, file.end);
+    long leftReadBits = file.tellg() * 8;
+    file.seekg (0, file.beg);
+    
     char* readBuffer = new char[256];
     
     HuffEntry *it = root;
@@ -261,7 +277,7 @@ void vl_decompress(char* filename, int wordLength)
         
         size_t length = file.read(readBuffer, 256).gcount();
         
-        // Each char
+        // Each char of buffer
         int i;
         for (i = 0; i < length; i++) {
             char c = readBuffer[i];
@@ -269,8 +285,15 @@ void vl_decompress(char* filename, int wordLength)
             // Each bit of read byte
             int j;
             for (j = (sizeof(c) * 8 - 1); j >= 0; j--) {
-                bool bit = (c & (1 << j)) >> j;
+                // Last buffer, last char, left only fake bits
+                // Extending decoded bit with bits which were left during encoding
+                if (fakeBitsLength && (leftReadBits == fakeBitsLength)) {
+                    
+                    break;
+                }
+                leftReadBits--;
                 
+                bool bit = (c & (1 << j)) >> j;
                 
                 if (bit == 0 && it->left) {
                     it = it->left;
@@ -291,7 +314,8 @@ void vl_decompress(char* filename, int wordLength)
                         // Full char
                         if (decodedBits == 8) {
                             cout << decoded;
-
+                            print_char_to_binary(decoded);
+                            
                             decoded = 0;
                             decodedBits = 0;
                         } else {
@@ -303,6 +327,28 @@ void vl_decompress(char* filename, int wordLength)
                     it = root;
                 }
                 
+            }
+        }
+        
+        if (leftBitsLength) {
+            cout << "Left length: " << leftBitsLength;
+            int k;
+            for (k = leftBitsLength - 1; k >= 0; k--) {
+                bool bit = (leftBits & (1 << k)) >> k;
+                
+                decoded |= bit;
+                decodedBits++;
+                
+                // Full char
+                if (decodedBits == 8) {
+                    cout << decoded;
+                    print_char_to_binary(decoded);
+                    
+                    decoded = 0;
+                    decodedBits = 0;
+                } else {
+                    decoded <<= 1;
+                }
             }
         }
         
@@ -321,7 +367,7 @@ int main(int argc,char**argv){
     {
         if(argv[1][1]=='e')
         {
-            int wordLength = 7;
+            int wordLength = 6;
             
             of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
             vl_encode(argv[2], argv[3], wordLength);
