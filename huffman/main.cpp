@@ -10,6 +10,7 @@
 #include <set>
 #include <algorithm>
 #include <queue>
+#include "HuffCompressor.h"
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
@@ -359,17 +360,26 @@ int main(int argc,char**argv){
     {
         if(argv[1][1]=='e')
         {
-            int wordLength = 2;
             
-            of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
-            vl_encode("test.pdf", "compressed.txt", wordLength);
-            of->close();
-            
-            cout << "reading compressed" << endl;
-            
-            in = new ofstream("test_dec.pdf", ofstream::out|ofstream::binary);
-            vl_decompress("compressed.txt", wordLength);
-            in->close();
+            try {
+                
+                HuffCompressor *compressor = new HuffCompressor();
+                compressor->compress("test.pdf", 0x11);
+                
+            } catch (string err) {
+                cout << err << endl;
+            }
+//            int wordLength = 2;
+//            
+//            of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
+//            vl_encode("test.pdf", "compressed.txt", wordLength);
+//            of->close();
+//            
+//            cout << "reading compressed" << endl;
+//            
+//            in = new ofstream("test_dec.pdf", ofstream::out|ofstream::binary);
+//            vl_decompress("compressed.txt", wordLength);
+//            in->close();
             
         }
         else if(argv[1][1]=='d')
