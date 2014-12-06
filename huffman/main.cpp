@@ -276,6 +276,9 @@ void vl_encode(char*filename, char*outname, int wordLength)
         table.push(up);
     }
     
+    // Saving word length in 1 Byte
+    of->put((char)wordLength);
+    
     // Saving file size in 4 Bytes
     ifstream file (filename, ifstream::in|ifstream::binary);
     file.seekg(0, file.end);
@@ -289,8 +292,7 @@ void vl_encode(char*filename, char*outname, int wordLength)
     
     file.close();
 //    printCodesTree(table.top(), "");
-//    
-//    of->put((char)wordLength);
+//
 //    char ch = 0;
 //    int chFill = 0;
 //    writeTreeToFile(wordLength, table.top(), &ch, &chFill);
@@ -358,10 +360,13 @@ void readTree(ifstream *file, const int wordLength, HuffEntry **root, char *ch, 
     }
 }
 
-void vl_decompress(char* filename, int wordLength)
+void vl_decompress(char* filename)
 {
     ifstream file (filename , ifstream::in|ifstream::binary);
 
+    // Word length is compressed in first 1 Byte
+    int wordLength = (unsigned char)file.get();
+    
     // File size is compressed in 4 Bytes
     char *fileSizeChar = new char[4];
     file.read(fileSizeChar, 4);
@@ -472,7 +477,7 @@ int main(int argc,char**argv){
     {
         if(argv[1][1]=='e')
         {
-            int wordLength = 13;
+            int wordLength = 2;
             
             of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
             vl_encode("test.pdf", "compressed.txt", wordLength);
@@ -481,7 +486,7 @@ int main(int argc,char**argv){
             cout << "reading compressed" << endl;
             
             in = new ofstream("test_d.pdf", ofstream::out|ofstream::binary);
-            vl_decompress("compressed.txt", wordLength);
+            vl_decompress("compressed.txt");
             in->close();
             
         }
