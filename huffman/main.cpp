@@ -1,4 +1,4 @@
-// Encoded file: word_size:1B|tree|content
+// Encoded file: word_size:1B|file_size:4B|left_bits:2B|tree|content
 
 #include <vector>
 #include <deque>
@@ -38,7 +38,6 @@ int encodedSize;
 HuffEntry *root;
 int leftBits;
 int leftBitsLength;
-int fakeBitsLength;
 
 ofstream* of;
 ofstream *in;
@@ -54,13 +53,12 @@ void print_char_to_binary(char ch)
 #endif
 
 #ifdef DEBUG
-void print_short_to_binary(short ch, int size)
+void print_binary(long ch, int size)
 {
     int i;
-    int from = MIN(sizeof(ch) * 8, size);
-    for (i=from - 1;i>=0;i--)
-        printf("%d",((ch & (1<<i))>>i));
-    printf("\n");
+    for (i = size - 1; i >= 0; i--) {
+        cout << ((ch & (1<<i))>>i);
+    }
 }
 #endif
 
@@ -278,6 +276,18 @@ void vl_encode(char*filename, char*outname, int wordLength)
         table.push(up);
     }
     
+    // Saving file size in 4 Bytes
+    ifstream file (filename, ifstream::in|ifstream::binary);
+    file.seekg(0, file.end);
+    long fileSize = file.tellg();
+    int i;
+    for (i = 3; i >= 0; i--) {
+        char ch = fileSize >> (i * 8);
+        of->put(ch);
+    }
+    file.seekg(0, file.beg);
+    
+    file.close();
 //    printCodesTree(table.top(), "");
 //    
 //    of->put((char)wordLength);
@@ -301,7 +311,6 @@ void vl_encode(char*filename, char*outname, int wordLength)
     // extending it with 0 bits and writing to file
     if (encodedSize != 0) {
         int shift = 8 - encodedSize - 1;
-        fakeBitsLength = shift;
         encoded <<= shift;
         of->put(encoded);
     }
@@ -353,10 +362,20 @@ void vl_decompress(char* filename, int wordLength)
 {
     ifstream file (filename , ifstream::in|ifstream::binary);
 
-    // Getting file length
-    file.seekg (0, file.end);
-    long leftReadBits = file.tellg() * 8;
-    file.seekg (0, file.beg);
+    // File size is compressed in 4 Bytes
+    char *fileSizeChar = new char[4];
+    file.read(fileSizeChar, 4);
+    unsigned long fileSize = 0;
+    int i;
+    for (i = 0; i < 4; i++) {
+        fileSize |= (unsigned char)fileSizeChar[i];
+        if (i < 3) {
+            fileSize <<= 8;
+        }
+    }
+    
+    // Filled file in bytes
+    unsigned long filledFile = 0;
     
     char* readBuffer = new char[256];
     
@@ -378,14 +397,6 @@ void vl_decompress(char* filename, int wordLength)
             // Each bit of read byte
             int j;
             for (j = (sizeof(c) * 8 - 1); j >= 0; j--) {
-                // Last buffer, last char, left only fake bits
-                // Extending decoded bit with bits which were left during encoding
-                if (fakeBitsLength && (leftReadBits == fakeBitsLength)) {
-                    
-                    break;
-                }
-                leftReadBits--;
-                
                 bool bit = (c & (1 << j)) >> j;
                 
                 if (bit == 0 && it->left) {
@@ -407,6 +418,11 @@ void vl_decompress(char* filename, int wordLength)
                         // Full char
                         if (decodedBits == 8) {
                             in->put(decoded);
+                            filledFile++;
+                            
+                            if (filledFile == fileSize) {
+                                break;
+                            }
                             
                             decoded = 0;
                             decodedBits = 0;
