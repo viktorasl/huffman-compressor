@@ -315,8 +315,6 @@ void vl_encode(char*filename, char*outname, int wordLength)
         encoded <<= shift;
         of->put(encoded);
     }
-    
-    //
 }
 
 void readTree(ifstream *file, const int wordLength, HuffEntry **root, char *ch, int *readBit)
@@ -381,16 +379,15 @@ void vl_decompress(char* filename)
     }
     
     // Reading tree from file
-    HuffEntry *it = NULL;
+    HuffEntry *root = NULL;
     char ch = 0;
     int readBit = -1;
-    readTree(&file, wordLength, &it, &ch, &readBit);
+    readTree(&file, wordLength, &root, &ch, &readBit);
     
     // Filled file in bytes
+    HuffEntry *it = root;
     unsigned long filledFile = 0;
-    
     char* readBuffer = new char[256];
-    
     char decoded = 0;
     int decodedBits = 0;
     
@@ -449,8 +446,6 @@ void vl_decompress(char* filename)
         }
         
     }
-    
-    
     
     if (leftBitsLength) {
         int k;
