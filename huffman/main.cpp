@@ -293,14 +293,13 @@ void vl_encode(char*filename, char*outname, int wordLength)
     file.close();
 //    printCodesTree(table.top(), "");
 //
-//    char ch = 0;
-//    int chFill = 0;
-//    writeTreeToFile(wordLength, table.top(), &ch, &chFill);
-//    if (chFill > 0) {
-//        ch <<= (8 - chFill - 1);
-//        of->put(ch);
-////        print_char_to_binary(ch);
-//    }
+    char ch = 0;
+    int chFill = 0;
+    writeTreeToFile(wordLength, table.top(), &ch, &chFill);
+    if (chFill > 0) {
+        ch <<= (8 - chFill - 1);
+        of->put(ch);
+    }
     
     root = table.top();
     
@@ -309,13 +308,15 @@ void vl_encode(char*filename, char*outname, int wordLength)
 
     analyze(filename, wordLength, &encd, NULL);
     
-    // If there are some bits left unencoded,
+    // If there are some bits left uncompressed,
     // extending it with 0 bits and writing to file
     if (encodedSize != 0) {
         int shift = 8 - encodedSize - 1;
         encoded <<= shift;
         of->put(encoded);
     }
+    
+    //
 }
 
 void readTree(ifstream *file, const int wordLength, HuffEntry **root, char *ch, int *readBit)
@@ -379,12 +380,16 @@ void vl_decompress(char* filename)
         }
     }
     
+    // Reading tree from file
+    HuffEntry *it = NULL;
+    char ch = 0;
+    int readBit = -1;
+    readTree(&file, wordLength, &it, &ch, &readBit);
+    
     // Filled file in bytes
     unsigned long filledFile = 0;
     
     char* readBuffer = new char[256];
-    
-    HuffEntry *it = root;
     
     char decoded = 0;
     int decodedBits = 0;
@@ -445,6 +450,8 @@ void vl_decompress(char* filename)
         
     }
     
+    
+    
     if (leftBitsLength) {
         int k;
         for (k = leftBitsLength - 1; k >= 0; k--) {
@@ -477,15 +484,15 @@ int main(int argc,char**argv){
     {
         if(argv[1][1]=='e')
         {
-            int wordLength = 2;
+            int wordLength = 8;
             
             of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
-            vl_encode("test.pdf", "compressed.txt", wordLength);
+            vl_encode("msc.mp3", "compressed.txt", wordLength);
             of->close();
             
             cout << "reading compressed" << endl;
             
-            in = new ofstream("test_d.pdf", ofstream::out|ofstream::binary);
+            in = new ofstream("msc_d.mp3", ofstream::out|ofstream::binary);
             vl_decompress("compressed.txt");
             in->close();
             
