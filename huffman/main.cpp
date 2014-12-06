@@ -1,4 +1,4 @@
-// Encoded file: word_size:1B|file_size:4B|left_bits:2B|tree|content
+// Encoded file: word_size:1B|file_size:4B|left_bits_length:1B|left_bits:2B|tree|content
 
 #include <vector>
 #include <deque>
@@ -10,6 +10,7 @@
 #include <set>
 #include <algorithm>
 #include <queue>
+#include <math.h>
 #include "HuffCompressor.h"
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
@@ -289,10 +290,19 @@ void vl_encode(char*filename, char*outname, int wordLength)
         of->put(ch);
     }
     file.seekg(0, file.beg);
-    
     file.close();
-//    printCodesTree(table.top(), "");
-//
+    
+    // Saving left bits length in 1 Byte
+    of->put((unsigned char)leftBitsLength);
+    
+    // Saving left bits
+    unsigned int bytesCount = ceil((float)leftBitsLength / 8);
+    for (i = bytesCount - 1; i >= 0; i--) {
+        char leftBitsCh = (leftBits >> (i * 8)) & 0xFF;
+        of->put(leftBitsCh);
+    }
+    
+    // Saving tree to file
     char ch = 0;
     int chFill = 0;
     writeTreeToFile(wordLength, table.top(), &ch, &chFill);
@@ -315,6 +325,7 @@ void vl_encode(char*filename, char*outname, int wordLength)
         encoded <<= shift;
         of->put(encoded);
     }
+    
 }
 
 void readTree(ifstream *file, const int wordLength, HuffEntry **root, char *ch, int *readBit)
@@ -359,42 +370,16 @@ void readTree(ifstream *file, const int wordLength, HuffEntry **root, char *ch, 
     }
 }
 
-void vl_decompress(char* filename)
+void decompresContent(ifstream *file, HuffEntry * const root, int const wordLength, unsigned long const fileSize, char *decoded, int *decodedBits)
 {
-    ifstream file (filename , ifstream::in|ifstream::binary);
-
-    // Word length is compressed in first 1 Byte
-    int wordLength = (unsigned char)file.get();
-    
-    // File size is compressed in 4 Bytes
-    char *fileSizeChar = new char[4];
-    file.read(fileSizeChar, 4);
-    unsigned long fileSize = 0;
-    int i;
-    for (i = 0; i < 4; i++) {
-        fileSize |= (unsigned char)fileSizeChar[i];
-        if (i < 3) {
-            fileSize <<= 8;
-        }
-    }
-    
-    // Reading tree from file
-    HuffEntry *root = NULL;
-    char ch = 0;
-    int readBit = -1;
-    readTree(&file, wordLength, &root, &ch, &readBit);
-    
-    // Filled file in bytes
+    char *readBuffer = new char[256];
     HuffEntry *it = root;
     unsigned long filledFile = 0;
-    char* readBuffer = new char[256];
-    char decoded = 0;
-    int decodedBits = 0;
     
     // Building leaves
-    while (file.good()) {
+    while (file->good()) {
         
-        size_t length = file.read(readBuffer, 256).gcount();
+        size_t length = file->read(readBuffer, 256).gcount();
         
         // Each char of buffer
         int i;
@@ -417,27 +402,27 @@ void vl_decompress(char* filename)
                     // Each bit of decoded code (int)
                     int k;
                     for (k = wordLength - 1;k>=0;k--) {
-
+                        
                         bool codeBit = (it->value & (1 << k)) >> k;
-                        decoded |= codeBit;
-                        decodedBits++;
-
+                        *decoded |= codeBit;
+                        (*decodedBits)++;
+                        
                         // Full char
-                        if (decodedBits == 8) {
-                            in->put(decoded);
+                        if (*decodedBits == 8) {
+                            in->put(*decoded);
                             filledFile++;
                             
                             if (filledFile == fileSize) {
-                                break;
+                                return;
                             }
                             
-                            decoded = 0;
-                            decodedBits = 0;
+                            *decoded = 0;
+                            *decodedBits = 0;
                         } else {
-                            decoded <<= 1;
+                            (*decoded) <<= 1;
                         }
                     }
-
+                    
                     // Resetting
                     it = root;
                 }
@@ -446,6 +431,50 @@ void vl_decompress(char* filename)
         }
         
     }
+}
+
+void vl_decompress(char* filename)
+{
+    ifstream file (filename , ifstream::in|ifstream::binary);
+
+    // Word length is compressed in first 1 Byte
+    int wordLength = (unsigned char)file.get();
+    
+    // File size is compressed in 4 Bytes
+    char *fileSizeChar = new char[4];
+    file.read(fileSizeChar, 4);
+    unsigned long fileSize = 0;
+    int i;
+    for (i = 0; i < 4; i++) {
+        fileSize |= (unsigned char)fileSizeChar[i];
+        if (i < 3) {
+            fileSize <<= 8;
+        }
+    }
+    
+    // Left bits length in 1 Byte
+    unsigned int leftBitsLength = (unsigned int)file.get();
+    unsigned int bytesCount = ceil((float)leftBitsLength / 8);
+    char *leftBitsBuffer = new char[bytesCount];
+    file.read(leftBitsBuffer, bytesCount);
+    int leftBits = 0;
+    for (i = 0; i < bytesCount; i++) {
+        leftBits |= (unsigned char)leftBitsBuffer[i];
+        if (i < bytesCount - 1) {
+            leftBits <<= 8;
+        }
+    }
+    
+    // Reading tree from file
+    HuffEntry *root = NULL;
+    char ch = 0;
+    int readBit = -1;
+    readTree(&file, wordLength, &root, &ch, &readBit);
+    
+    // Decompressing file content
+    char decoded = 0;
+    int decodedBits = 0;
+    decompresContent(&file, root, wordLength, fileSize, &decoded, &decodedBits);
     
     if (leftBitsLength) {
         int k;
@@ -475,36 +504,17 @@ void vl_decompress(char* filename)
  */
 int main(int argc,char**argv){
     
-    if(argc==4 && argv[1][0]=='-')
-    {
-        if(argv[1][1]=='e')
-        {
-            int wordLength = 8;
-            
-            of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
-            vl_encode("msc.mp3", "compressed.txt", wordLength);
-            of->close();
-            
-            cout << "reading compressed" << endl;
-            
-            in = new ofstream("msc_d.mp3", ofstream::out|ofstream::binary);
-            vl_decompress("compressed.txt");
-            in->close();
-            
-        }
-        else if(argv[1][1]=='d')
-        {
-            
-        }
-        else
-        {
-            cout<<"Invalid arguments!"<<endl;
-            return 1;
-        }
-        
-    }else{
-        cout<<"Invalid arguments!"<<endl;
-        return 1;
-    }
+    int wordLength = 8;
+    
+    of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
+    vl_encode("msc.mp3", "compressed.txt", wordLength);
+    of->close();
+    
+    cout << "reading compressed" << endl;
+    
+    in = new ofstream("msc_d.mp3", ofstream::out|ofstream::binary);
+    vl_decompress("compressed.txt");
+    in->close();
+    
     return 0;
 }
