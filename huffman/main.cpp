@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <queue>
 #include <math.h>
-#include "HuffCompressor.h"
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
