@@ -199,7 +199,7 @@ void buildingTreeAppend(bool bit, char *ch, int *fill)
     
     if (*fill == 8) {
         of->put(*ch);
-//        print_char_to_binary(*ch);
+        print_char_to_binary(*ch);
         *ch = 0;
         *fill = 0;
     } else {
@@ -268,22 +268,27 @@ void vl_encode(char*filename, char*outname, int wordLength)
     char ch = 0;
     int chFill = 0;
     writeTreeToFile(wordLength, table.top(), &ch, &chFill);
-    
-    root = table.top();
-    
-    HuffCode code;
-    buildMap(root, &tableMap, code);
-    
-    analyze(filename, wordLength, &encd, NULL);
-    
-    // If there are some bits left unencoded,
-    // extending it with 0 bits and writing to file
-    if (encodedSize != 0) {
-        int shift = 8 - encodedSize - 1;
-        fakeBitsLength = shift;
-        encoded <<= shift;
-        of->put(encoded);
+    if (chFill > 0) {
+        ch <<= (8 - chFill - 1);
+        of->put(ch);
+        print_char_to_binary(ch);
     }
+    
+//    root = table.top();
+//    
+//    HuffCode code;
+//    buildMap(root, &tableMap, code);
+//    
+//    analyze(filename, wordLength, &encd, NULL);
+//    
+//    // If there are some bits left unencoded,
+//    // extending it with 0 bits and writing to file
+//    if (encodedSize != 0) {
+//        int shift = 8 - encodedSize - 1;
+//        fakeBitsLength = shift;
+//        encoded <<= shift;
+//        of->put(encoded);
+//    }
 }
 
 void vl_decompress(char* filename, int wordLength)
@@ -407,12 +412,12 @@ int main(int argc,char**argv){
             } catch (string err) {
                 cout << err << endl;
             }
-//            int wordLength = 2;
-//            
-//            of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
-//            vl_encode("test.pdf", "compressed.txt", wordLength);
-//            of->close();
-//            
+            int wordLength = 8;
+            
+            of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
+            vl_encode("compress.txt", "compressed.txt", wordLength);
+            of->close();
+//
 //            cout << "reading compressed" << endl;
 //            
 //            in = new ofstream("test_dec.pdf", ofstream::out|ofstream::binary);
