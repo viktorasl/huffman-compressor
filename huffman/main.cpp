@@ -114,8 +114,6 @@ void analyze(char *filename, int wordLength, CallbackType callback, CallbackType
         int i;
         for (i = 0; i < length; i++) {
             char ch = readBuffer[i];
-            //            cout << "Char: " << ch << " ";
-            //            print_char_to_binary(ch);
             
             // Each bit in character
             int j;
@@ -131,8 +129,6 @@ void analyze(char *filename, int wordLength, CallbackType callback, CallbackType
                 
                 // Finished composing word of wordLength bits, making HuffEntry leaf
                 if (wordFill == wordLength) {
-                    //                    cout << "Code: " << wordInt << endl;
-                    
                     callback(wordFill, wordInt);
                     
                     // Resetting
@@ -196,6 +192,44 @@ void encd(int size, int word)
     }
 }
 
+void buildingTreeAppend(bool bit, char *ch, int *fill)
+{
+    (*ch) |= bit;
+    (*fill)++;
+    
+    if (*fill == 8) {
+        of->put(*ch);
+//        print_char_to_binary(*ch);
+        *ch = 0;
+        *fill = 0;
+    } else {
+        (*ch) <<= 1;
+    }
+}
+
+void writeTreeToFile(int wordLength, HuffEntry *root, char *ch, int *fill)
+{
+    if (!root->left && !root->right) {
+        buildingTreeAppend(1, ch, fill);
+        
+        int i;
+        for (i = wordLength - 1; i >= 0; i--) {
+            bool bit = (root->value & (1 << i)) >> i;
+            buildingTreeAppend(bit, ch, fill);
+        }
+        
+    } else {
+        buildingTreeAppend(0, ch, fill);
+    }
+    
+    if (root->left) {
+        writeTreeToFile(wordLength, root->left, ch, fill);
+    }
+    if (root->right) {
+        writeTreeToFile(wordLength, root->right, ch, fill);
+    }
+}
+
 int fakeBitsLength;
 
 void vl_encode(char*filename, char*outname, int wordLength)
@@ -230,6 +264,10 @@ void vl_encode(char*filename, char*outname, int wordLength)
         
         table.push(up);
     }
+    
+    char ch = 0;
+    int chFill = 0;
+    writeTreeToFile(wordLength, table.top(), &ch, &chFill);
     
     root = table.top();
     
