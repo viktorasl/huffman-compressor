@@ -1,4 +1,12 @@
-// Encoded file: word_size:1B|file_size:4B|left_bits_length:1B|left_bits:2B|tree|content
+//
+//  main.cpp
+//  huffman
+//
+//  Created by Viktoras Laukevičius on 01/12/14.
+//  Copyright (c) 2014 viktorasl. All rights reserved.
+//
+
+//  Encoded file: word_size:1B|file_size:4B|left_bits_length:1B|left_bits:2B|tree|content
 
 #include <vector>
 #include <deque>
@@ -245,9 +253,11 @@ void writeTreeToFile(int wordLength, HuffEntry *root, char *ch, int *fill)
     }
 }
 
-void vl_encode(char*filename, char*outname, int wordLength)
+void vl_encode(char *inFileName, char *outFileName, int wordLength)
 {
-    analyze(filename, wordLength, &gather, &leftBitsHandler);
+    of = new ofstream(outFileName, ofstream::out|ofstream::binary);
+    
+    analyze(inFileName, wordLength, &gather, &leftBitsHandler);
     
     cout << "analization finished" << endl;
     
@@ -281,7 +291,7 @@ void vl_encode(char*filename, char*outname, int wordLength)
     of->put((char)wordLength);
     
     // Saving file size in 4 Bytes
-    ifstream file (filename, ifstream::in|ifstream::binary);
+    ifstream file (inFileName, ifstream::in|ifstream::binary);
     file.seekg(0, file.end);
     long fileSize = file.tellg();
     int i;
@@ -316,7 +326,7 @@ void vl_encode(char*filename, char*outname, int wordLength)
     HuffCode code;
     buildMap(root, &tableMap, code);
 
-    analyze(filename, wordLength, &encd, NULL);
+    analyze(inFileName, wordLength, &encd, NULL);
     
     // If there are some bits left uncompressed,
     // extending it with 0 bits and writing to file
@@ -326,6 +336,8 @@ void vl_encode(char*filename, char*outname, int wordLength)
         of->put(encoded);
     }
     
+    of->close();
+    delete of;
 }
 
 void readTree(ifstream *file, const int wordLength, HuffEntry **root, char *ch, int *readBit)
@@ -433,8 +445,9 @@ void decompresContent(ifstream *file, HuffEntry * const root, int const wordLeng
     }
 }
 
-void vl_decompress(char* filename)
+void vl_decompress(char *filename, char *outName)
 {
+    in = new ofstream(outName, ofstream::out|ofstream::binary);
     ifstream file (filename , ifstream::in|ifstream::binary);
 
     // Word length is compressed in first 1 Byte
@@ -497,24 +510,42 @@ void vl_decompress(char* filename)
     }
     
     file.close();
+    in->close();
+    delete in;
 }
 
-/**
- * handles with arguments.
- */
-int main(int argc,char**argv){
-    
-    int wordLength = 8;
-    
-    of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
-    vl_encode("msc.mp3", "compressed.txt", wordLength);
-    of->close();
-    
-    cout << "reading compressed" << endl;
-    
-    in = new ofstream("msc_d.mp3", ofstream::out|ofstream::binary);
-    vl_decompress("compressed.txt");
-    in->close();
+int main(int argc, char **argv)
+{
+    if (argc == 6 && !strcmp(argv[1], "-c") && !strcmp(argv[2], "-w")) {
+        
+        unsigned int wordLength = atoi(argv[3]);
+        if (wordLength < 2 || wordLength > 16) {
+            cout << "Invalid word lenth, must be between 2 and 16" << endl;
+            
+            return 1;
+        }
+        
+        char *inFile = argv[4];
+        char *outFile = argv[5];
+        
+        vl_encode(inFile, outFile, wordLength);
+        cout << "Compressed!" << endl;
+        
+    } else if (argc == 4 && !strcmp(argv[1], "-d")) {
+        
+        char *inFile = argv[2];
+        char *outFile = argv[3];
+        
+        vl_decompress(inFile, outFile);
+        cout << "Decompressed!" << endl;
+        
+    } else {
+        cout << "Invalid arguments! usage:" << endl;
+        cout << "\t-c -w <word_length:[2-16]> <filename_to_compress> <compressed_name>" << endl;
+        cout << "\t-d <compressed_name> <result_file_name>" << endl;
+        
+        return 1;
+    }
     
     return 0;
 }
