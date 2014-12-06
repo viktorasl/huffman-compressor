@@ -22,7 +22,25 @@ typedef int HuffValue;
 typedef int HuffFrequency;
 typedef map<HuffValue, HuffFrequency> HuffFrequenciesTable;
 typedef HuffFrequenciesTable::iterator HuffFrequenciesIterator;
+typedef void (*CallbackType)(int, int);
 
+struct HuffEntry {
+    int value = 0;
+    int frequency = 0;
+    HuffEntry *left = NULL;
+    HuffEntry *right = NULL;
+};
+
+HuffFrequenciesTable frequencies;
+HuffTable tableMap;
+char encoded;
+int encodedSize;
+HuffEntry *root;
+int leftBits;
+int leftBitsLength;
+int fakeBitsLength;
+
+ofstream* of;
 ofstream *in;
 
 #ifdef DEBUG
@@ -45,13 +63,6 @@ void print_short_to_binary(short ch, int size)
     printf("\n");
 }
 #endif
-
-struct HuffEntry {
-    int value = 0;
-    int frequency = 0;
-    HuffEntry *left = NULL;
-    HuffEntry *right = NULL;
-};
 
 struct Comp{
     bool operator()(const HuffEntry *a, const HuffEntry *b){
@@ -93,7 +104,24 @@ void around(HuffEntry *root, string code) {
 }
 #endif
 
-typedef void (*CallbackType)(int, int);
+#ifdef DEBUG
+void printCodesTree(HuffEntry *root, string code)
+{
+    if (!root->left && !root->right) {
+        cout << "value=" << root->value << " code=" << code << endl;
+    }
+    if (root->left) {
+        stringstream ss;
+        ss << code << '0';
+        printCodesTree(root->left, ss.str());
+    }
+    if (root->right) {
+        stringstream ss;
+        ss << code << '1';
+        printCodesTree(root->right, ss.str());
+    }
+}
+#endif
 
 void analyze(char *filename, int wordLength, CallbackType callback, CallbackType lastBits)
 {
@@ -150,27 +178,15 @@ void analyze(char *filename, int wordLength, CallbackType callback, CallbackType
     file.close();
 }
 
-HuffFrequenciesTable frequencies;
-
 void gather(int size, int word) {
     frequencies[word]++;
 }
-
-int leftBits;
-int leftBitsLength;
 
 void leftBitsHandler(int size, int word)
 {
     leftBits = word;
     leftBitsLength = size;
 }
-
-HuffTable tableMap;
-char encoded;
-int encodedSize;
-HuffEntry *root;
-
-ofstream* of;
 
 void encd(int size, int word)
 {
@@ -199,7 +215,7 @@ void buildingTreeAppend(bool bit, char *ch, int *fill)
     
     if (*fill == 8) {
         of->put(*ch);
-        print_char_to_binary(*ch);
+//        print_char_to_binary(*ch);
         *ch = 0;
         *fill = 0;
     } else {
@@ -229,8 +245,6 @@ void writeTreeToFile(int wordLength, HuffEntry *root, char *ch, int *fill)
         writeTreeToFile(wordLength, root->right, ch, fill);
     }
 }
-
-int fakeBitsLength;
 
 void vl_encode(char*filename, char*outname, int wordLength)
 {
@@ -265,20 +279,23 @@ void vl_encode(char*filename, char*outname, int wordLength)
         table.push(up);
     }
     
+    printCodesTree(table.top(), "");
+    
+    of->put((char)wordLength);
     char ch = 0;
     int chFill = 0;
     writeTreeToFile(wordLength, table.top(), &ch, &chFill);
     if (chFill > 0) {
         ch <<= (8 - chFill - 1);
         of->put(ch);
-        print_char_to_binary(ch);
+//        print_char_to_binary(ch);
     }
     
 //    root = table.top();
 //    
 //    HuffCode code;
 //    buildMap(root, &tableMap, code);
-//    
+//
 //    analyze(filename, wordLength, &encd, NULL);
 //    
 //    // If there are some bits left unencoded,
@@ -291,105 +308,166 @@ void vl_encode(char*filename, char*outname, int wordLength)
 //    }
 }
 
+void readTree(ifstream *file, const int wordLength, HuffEntry **root, char *ch, int *readBit)
+{
+    if (*readBit < 0) {
+        *ch = file->get();
+        *readBit = 7;
+    }
+    
+    bool bit = (*ch & (1 << *readBit)) >> *readBit;
+    (*readBit)--;
+    
+    if (bit) {
+        int value = 0;
+        int valueLength = 0;
+        
+        while (valueLength != wordLength) {
+            if (*readBit < 0) {
+                *ch = file->get();
+                *readBit = 7;
+            }
+            
+            bool valueBit = (*ch & (1 << *readBit)) >> *readBit;
+            (*readBit)--;
+            value |= valueBit;
+            valueLength++;
+            
+            if (valueLength != wordLength) {
+                value <<= 1;
+            }
+        }
+        
+        HuffEntry *vertex = new HuffEntry();
+        vertex->value = value;
+        *root = vertex;
+        
+    } else {
+        HuffEntry *vertex = new HuffEntry();
+        *root = vertex;
+        readTree(file, wordLength, &vertex->left, ch, readBit);
+        readTree(file, wordLength, &vertex->right, ch, readBit);
+    }
+}
+
 void vl_decompress(char* filename, int wordLength)
 {
     ifstream file (filename , ifstream::in|ifstream::binary);
     
-    // Getting file length
-    file.seekg (0, file.end);
-    long leftReadBits = file.tellg() * 8;
-    file.seekg (0, file.beg);
+    int wl = file.get();
+    cout << wl << endl;
     
-    char* readBuffer = new char[256];
+    HuffEntry *root = NULL;
+    char ch = 0;
+    int readBit = -1;
+    readTree(&file, wordLength, &root, &ch, &readBit);
     
-    HuffEntry *it = root;
+    printCodesTree(root, "");
     
-    char decoded = 0;
-    int decodedBits = 0;
+//    of->put((char)wordLength);
+//    int chFill = 0;
+//    writeTreeToFile(wordLength, root, &ch, &chFill);
+//    if (chFill > 0) {
+//        ch <<= (8 - chFill - 1);
+//        of->put(ch);
+//        print_char_to_binary(ch);
+//    }
     
-    // Building leaves
-    while (file.good()) {
-        
-        size_t length = file.read(readBuffer, 256).gcount();
-        
-        // Each char of buffer
-        int i;
-        for (i = 0; i < length; i++) {
-            char c = readBuffer[i];
-            
-            // Each bit of read byte
-            int j;
-            for (j = (sizeof(c) * 8 - 1); j >= 0; j--) {
-                // Last buffer, last char, left only fake bits
-                // Extending decoded bit with bits which were left during encoding
-                if (fakeBitsLength && (leftReadBits == fakeBitsLength)) {
-                    
-                    break;
-                }
-                leftReadBits--;
-                
-                bool bit = (c & (1 << j)) >> j;
-                
-                if (bit == 0 && it->left) {
-                    it = it->left;
-                } else if (it->right) {
-                    it = it->right;
-                }
-                
-                if (!it->left && !it->right && it->value != -1) {
-                    
-                    // Each bit of decoded code (int)
-                    int k;
-                    for (k = wordLength - 1;k>=0;k--) {
-
-                        bool codeBit = (it->value & (1 << k)) >> k;
-                        decoded |= codeBit;
-                        decodedBits++;
-
-                        // Full char
-                        if (decodedBits == 8) {
-                            in->put(decoded);
-//                            cout << decoded;
-//                            print_char_to_binary(decoded);
-                            
-                            decoded = 0;
-                            decodedBits = 0;
-                        } else {
-                            decoded <<= 1;
-                        }
-                    }
-
-                    // Resetting
-                    it = root;
-                }
-                
-            }
-        }
-        
-    }
-    
-    if (leftBitsLength) {
-        //            cout << "Left length: " << leftBitsLength;
-        int k;
-        for (k = leftBitsLength - 1; k >= 0; k--) {
-            bool bit = (leftBits & (1 << k)) >> k;
-            
-            decoded |= bit;
-            decodedBits++;
-            
-            // Full char
-            if (decodedBits == 8) {
-                in->put(decoded);
-                //                    cout << decoded;
-                //                    print_char_to_binary(decoded);
-                
-                decoded = 0;
-                decodedBits = 0;
-            } else {
-                decoded <<= 1;
-            }
-        }
-    }
+//    // Getting file length
+//    file.seekg (0, file.end);
+//    long leftReadBits = file.tellg() * 8;
+//    file.seekg (0, file.beg);
+//    
+//    char* readBuffer = new char[256];
+//    
+//    HuffEntry *it = root;
+//    
+//    char decoded = 0;
+//    int decodedBits = 0;
+//    
+//    // Building leaves
+//    while (file.good()) {
+//        
+//        size_t length = file.read(readBuffer, 256).gcount();
+//        
+//        // Each char of buffer
+//        int i;
+//        for (i = 0; i < length; i++) {
+//            char c = readBuffer[i];
+//            
+//            // Each bit of read byte
+//            int j;
+//            for (j = (sizeof(c) * 8 - 1); j >= 0; j--) {
+//                // Last buffer, last char, left only fake bits
+//                // Extending decoded bit with bits which were left during encoding
+//                if (fakeBitsLength && (leftReadBits == fakeBitsLength)) {
+//                    
+//                    break;
+//                }
+//                leftReadBits--;
+//                
+//                bool bit = (c & (1 << j)) >> j;
+//                
+//                if (bit == 0 && it->left) {
+//                    it = it->left;
+//                } else if (it->right) {
+//                    it = it->right;
+//                }
+//                
+//                if (!it->left && !it->right && it->value != -1) {
+//                    
+//                    // Each bit of decoded code (int)
+//                    int k;
+//                    for (k = wordLength - 1;k>=0;k--) {
+//
+//                        bool codeBit = (it->value & (1 << k)) >> k;
+//                        decoded |= codeBit;
+//                        decodedBits++;
+//
+//                        // Full char
+//                        if (decodedBits == 8) {
+//                            in->put(decoded);
+////                            cout << decoded;
+////                            print_char_to_binary(decoded);
+//                            
+//                            decoded = 0;
+//                            decodedBits = 0;
+//                        } else {
+//                            decoded <<= 1;
+//                        }
+//                    }
+//
+//                    // Resetting
+//                    it = root;
+//                }
+//                
+//            }
+//        }
+//        
+//    }
+//    
+//    if (leftBitsLength) {
+//        //            cout << "Left length: " << leftBitsLength;
+//        int k;
+//        for (k = leftBitsLength - 1; k >= 0; k--) {
+//            bool bit = (leftBits & (1 << k)) >> k;
+//            
+//            decoded |= bit;
+//            decodedBits++;
+//            
+//            // Full char
+//            if (decodedBits == 8) {
+//                in->put(decoded);
+//                //                    cout << decoded;
+//                //                    print_char_to_binary(decoded);
+//                
+//                decoded = 0;
+//                decodedBits = 0;
+//            } else {
+//                decoded <<= 1;
+//            }
+//        }
+//    }
     
     file.close();
 }
@@ -407,7 +485,7 @@ int main(int argc,char**argv){
             try {
                 
                 HuffCompressor *compressor = new HuffCompressor();
-                compressor->compress("test.pdf", 0x11);
+                compressor->compress("test.pdf", 0x8);
                 
             } catch (string err) {
                 cout << err << endl;
@@ -417,11 +495,17 @@ int main(int argc,char**argv){
             of = new ofstream("compressed.txt", ofstream::out|ofstream::binary);
             vl_encode("compress.txt", "compressed.txt", wordLength);
             of->close();
+            
+            cout << "reading compressed" << endl;
+            
+            
 //
 //            cout << "reading compressed" << endl;
 //            
 //            in = new ofstream("test_dec.pdf", ofstream::out|ofstream::binary);
-//            vl_decompress("compressed.txt", wordLength);
+            vl_decompress("compressed.txt", wordLength);
+            
+            
 //            in->close();
             
         }
