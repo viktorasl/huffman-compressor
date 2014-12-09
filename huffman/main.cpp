@@ -22,19 +22,21 @@
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
+static const int readBufferSize = 256;
+
 using namespace std;
 
 typedef vector<bool> HuffCode;
 typedef map<int, HuffCode> HuffTable;
 typedef int HuffValue;
-typedef int HuffFrequency;
+typedef double HuffFrequency;
 typedef map<HuffValue, HuffFrequency> HuffFrequenciesTable;
 typedef HuffFrequenciesTable::iterator HuffFrequenciesIterator;
 typedef void (*CallbackType)(int, int);
 
 struct HuffEntry {
     int value = 0;
-    int frequency = 0;
+    double frequency = 0;
     HuffEntry *left = NULL;
     HuffEntry *right = NULL;
 };
@@ -131,18 +133,16 @@ void printCodesTree(HuffEntry *root, string code)
 
 void analyze(char *filename, int wordLength, CallbackType callback, CallbackType lastBits)
 {
-    int bufferSize = 2; // buffer size in bytes
-    
     int wordInt = 0;
     int wordFill = 0;
     
     ifstream file (filename , ifstream::in|ifstream::binary);
-    char* readBuffer = new char[bufferSize];
+    char* readBuffer = new char[readBufferSize];
     
     // Building leaves
     while (file.good()) {
         
-        size_t length = file.read(readBuffer, bufferSize).gcount();
+        size_t length = file.read(readBuffer, readBufferSize).gcount();
         
         // Each character in buffer
         int i;
@@ -203,7 +203,6 @@ void encd(int size, int word)
         encodedSize++;
         
         if (encodedSize == 8) {
-//            print_char_to_binary(encoded);
             of->put(encoded);
             encoded = 0;
             encodedSize = 0;
@@ -221,7 +220,6 @@ void buildingTreeAppend(bool bit, char *ch, int *fill)
     
     if (*fill == 8) {
         of->put(*ch);
-//        print_char_to_binary(*ch);
         *ch = 0;
         *fill = 0;
     } else {
@@ -258,7 +256,7 @@ void vl_encode(char *inFileName, char *outFileName, int wordLength)
     
     analyze(inFileName, wordLength, &gather, &leftBitsHandler);
     
-    cout << "analization finished" << endl;
+    cout << "-- gathered frequencies" << endl;
     
     priority_queue<HuffEntry *, vector<HuffEntry *>, Comp> table;
     
@@ -270,6 +268,8 @@ void vl_encode(char *inFileName, char *outFileName, int wordLength)
         
         table.push(h);
     }
+    
+    cout << "-- built priority queue" << endl;
     
     while (table.size() > 1) {
         HuffEntry* f = table.top();
@@ -286,8 +286,12 @@ void vl_encode(char *inFileName, char *outFileName, int wordLength)
         table.push(up);
     }
     
+    cout << "-- built tree" << endl;
+    
     // Saving word length in 1 Byte
     of->put((char)wordLength);
+    
+    cout << "-- saved word length" << endl;
     
     // Saving file size in 4 Bytes
     ifstream file (inFileName, ifstream::in|ifstream::binary);
@@ -301,6 +305,8 @@ void vl_encode(char *inFileName, char *outFileName, int wordLength)
     file.seekg(0, file.beg);
     file.close();
     
+    cout << "-- saved original file size" << endl;
+    
     // Saving left bits length in 1 Byte
     of->put((unsigned char)leftBitsLength);
     
@@ -311,6 +317,8 @@ void vl_encode(char *inFileName, char *outFileName, int wordLength)
         of->put(leftBitsCh);
     }
     
+    cout << "-- saved left bits" << endl;
+    
     // Saving tree to file
     char ch = 0;
     int chFill = 0;
@@ -319,6 +327,8 @@ void vl_encode(char *inFileName, char *outFileName, int wordLength)
         ch <<= (8 - chFill - 1);
         of->put(ch);
     }
+    
+    cout << "-- saved tree" << endl;
     
     root = table.top();
     
@@ -383,14 +393,14 @@ void readTree(ifstream *file, const int wordLength, HuffEntry **root, char *ch, 
 
 void decompresContent(ifstream *file, HuffEntry * const root, int const wordLength, unsigned long const fileSize, char *decoded, int *decodedBits)
 {
-    char *readBuffer = new char[256];
+    char *readBuffer = new char[readBufferSize];
     HuffEntry *it = root;
     unsigned long filledFile = 0;
     
     // Building leaves
     while (file->good()) {
         
-        size_t length = file->read(readBuffer, 256).gcount();
+        size_t length = file->read(readBuffer, readBufferSize).gcount();
         
         // Each char of buffer
         int i;
@@ -516,13 +526,14 @@ void vl_decompress(char *filename, char *outName)
 int main(int argc, char **argv)
 {
     if (argc == 6 && !strcmp(argv[1], "-c") && !strcmp(argv[2], "-w")) {
-        
         unsigned int wordLength = atoi(argv[3]);
         if (wordLength < 2 || wordLength > 16) {
             cout << "Invalid word lenth, must be between 2 and 16" << endl;
             
             return 1;
         }
+        
+        cout << "-- analyzing..." << endl;
         
         char *inFile = argv[4];
         char *outFile = argv[5];
