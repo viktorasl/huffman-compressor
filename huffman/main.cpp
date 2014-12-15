@@ -78,19 +78,19 @@ struct Comp{
     }
 };
 
-void buildMap(HuffEntry *root, HuffTable* populateTable, HuffCode code) {
+void generateCodes(HuffEntry *root, HuffTable* populateTable, HuffCode code) {
     if (!root->left && !root->right) {
         populateTable->insert(std::pair<int, HuffCode>(root->value, code));
     }
     if (root->left) {
         HuffCode newCode(code);
         newCode.push_back(0);
-        buildMap(root->left, populateTable, newCode);
+        generateCodes(root->left, populateTable, newCode);
     }
     if (root->right) {
         HuffCode newCode(code);
         newCode.push_back(1);
-        buildMap(root->right, populateTable, newCode);
+        generateCodes(root->right, populateTable, newCode);
     }
 }
 
@@ -333,7 +333,7 @@ void vl_encode(char *inFileName, char *outFileName, int wordLength)
     root = table.top();
     
     HuffCode code;
-    buildMap(root, &tableMap, code);
+    generateCodes(root, &tableMap, code);
 
     analyze(inFileName, wordLength, &encd, NULL);
     
