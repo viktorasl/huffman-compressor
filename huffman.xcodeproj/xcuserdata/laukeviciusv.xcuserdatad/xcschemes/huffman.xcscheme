@@ -68,7 +68,7 @@
             isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-c -w 16 xxx.ppt compressed.cd"
+            argument = "-c -w 16 wavefront.obj compressed.cd"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
